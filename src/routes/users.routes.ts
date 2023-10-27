@@ -1,7 +1,12 @@
 // cái file này sẽ lưu ALL route, api liên quan đến user
 import { Router } from 'express'
-import { loginController } from '~/controllers/users.controlers'
-import { loginValidator, registerValidator } from '~/middlewares/users.middlewares'
+import { loginController, logoutController } from '~/controllers/users.controlers'
+import {
+  loginValidator,
+  registerValidator,
+  accessTokenValidator,
+  refreshTokenValidator
+} from '~/middlewares/users.middlewares'
 import { registerController } from '~/controllers/users.controlers'
 import { register } from 'module'
 import { wrapAsync } from '~/utils/handlers'
@@ -36,10 +41,19 @@ des: đăng nhập
 path: users/login
 method: POST
 body: {email, password}
-
 */
 userRoute.get('/login', loginValidator, wrapAsync(loginController))
 userRoute.post('/register', registerValidator, wrapAsync(registerController))
+
+/*
+des: log out
+path: user/logout
+POST
+header: {Authorization: 'Bearer <access_Token>'}
+body: {refresh_Token: string}
+*/
+userRoute.post('/logout', accessTokenValidator, refreshTokenValidator, wrapAsync(logoutController))
+
 // nơi trả dữ lịu aka controller
 // trước nó thường là middleware
 

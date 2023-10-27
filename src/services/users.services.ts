@@ -7,6 +7,7 @@ import { TokenType } from '~/constants/enums'
 import { config } from 'dotenv'
 import RefreshToken from '~/models/schemas/RefreshToken.schema'
 import { ObjectId } from 'mongodb'
+import { USER_MESSAGES } from '~/constants/messages'
 config()
 
 class UserService {
@@ -82,6 +83,12 @@ class UserService {
       })
     )
     return { access_token, refresh_token }
+  }
+
+  async logout(refresh_token: string) {
+    // xoa refresh token khoi db
+    await databaseService.refreshTokens.deleteOne({ token: refresh_token })
+    return { message: USER_MESSAGES.LOGOUT_SUCCESSFULLY }
   }
 }
 const userService = new UserService()

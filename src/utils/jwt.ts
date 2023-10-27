@@ -1,6 +1,7 @@
 import { rejects } from 'assert'
 import jwt from 'jsonwebtoken'
 import { config } from 'dotenv'
+import { TokenPayload } from '~/models/requests/User.request'
 config()
 
 // cong thuc ma hoa - jwt.signOp là công thức mặc định của nó
@@ -21,3 +22,20 @@ export const signToken = ({
   })
 }
 // const func = ({obj} : {dinh nghia lai}) => {return ... }
+
+// Hàm nhận vào token, secretOrPublicKey?
+export const verifyToken = ({
+  token,
+  secretOrPublicKey = process.env.JWT_SECRET as string
+}: {
+  token: string
+  secretOrPublicKey?: string
+}) => {
+  //                giới hạn lại đầu ra của promise
+  return new Promise<TokenPayload>((rew, rej) => {
+    jwt.verify(token, secretOrPublicKey, (error, decoded) => {
+      if (error) throw rej(error)
+      rew(decoded as TokenPayload)
+    })
+  })
+}
