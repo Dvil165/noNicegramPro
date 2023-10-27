@@ -4,6 +4,7 @@ import { loginController } from '~/controllers/users.controlers'
 import { loginValidator, registerValidator } from '~/middlewares/users.middlewares'
 import { registerController } from '~/controllers/users.controlers'
 import { register } from 'module'
+import { wrapAsync } from '~/utils/handlers'
 const userRoute = Router()
 
 // Eg:
@@ -30,9 +31,15 @@ const userRoute = Router()
 // // nếu mà ko có next() thì bên postman sẽ bị pending
 
 // 16/10/23: login and register
+/*
+des: đăng nhập
+path: users/login
+method: POST
+body: {email, password}
 
-userRoute.get('/login', loginValidator, loginController)
-userRoute.post('/register', registerValidator, registerController)
+*/
+userRoute.get('/login', loginValidator, wrapAsync(loginController))
+userRoute.post('/register', registerValidator, wrapAsync(registerController))
 // nơi trả dữ lịu aka controller
 // trước nó thường là middleware
 

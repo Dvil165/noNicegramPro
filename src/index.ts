@@ -1,6 +1,7 @@
-import express from 'express'
+import express, { Request, Response, NextFunction } from 'express'
 import userRoute from './routes/users.routes'
 import databaseService from './services/database.services'
+import { defaultErrorHandler } from './middlewares/errors.middlewares'
 
 const PORT = 3000
 const app = express()
@@ -18,6 +19,7 @@ app.use('/users', userRoute)
 // noi luu toan bo api lien quan den user
 // sau do /tweets thi se xai dc ham
 // localhost:3000/users/tweets
+app.use(defaultErrorHandler)
 
 app.listen(PORT, () => {
   console.log(`Server is currently running on PORT ${PORT}`)

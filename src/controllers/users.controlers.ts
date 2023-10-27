@@ -6,35 +6,26 @@ import userService from '~/services/users.services'
 import { ParamsDictionary } from 'express-serve-static-core'
 import { registerRequestBody } from '~/models/requests/User.request'
 
-export const loginController = (req: Request, res: Response) => {
-  const { email, password } = req.body
-  if (email === 'text@gmail.com' && password === '123456') {
-    res.json({
-      data: [
-        { name: 'Duy', yob: 2003 },
-        { name: 'Hung', yob: 2002 },
-        { name: 'An', yob: 2001 }
-      ]
-    })
-  } else {
-    res.status(400).json({
-      message: 'login failed'
-    })
-  }
+export const loginController = async (req: Request, res: Response) => {
+  // vao req.user de lay user ra, va lay cai _id cua user do
+  // dung _id de tao tokens
+  const { user }: any = req
+  const userID = user._id // nen nho lay tu db xuong, nen no se la ObjectID
+  // nên là lấy xong nhớ toString để chuyển về string
+  // Tao token
+  const result = await userService.login(userID.toString())
+  // 27/10/23 thêm toString
+  return res.json({
+    message: 'Login successfully',
+    result
+  })
 }
 
 export const registerController = async (req: Request<ParamsDictionary, any, registerRequestBody>, res: Response) => {
-  try {
-    const result = await userService.register(req.body) // truyen thang req.body de tao user luon
-    // nhưng mà làm vậy thì hàm register sẽ bị ảnh hưởng, nên là cần mod lại
-    return res.status(201).json({
-      message: 'Register successfully',
-      result
-    })
-  } catch (error) {
-    return res.status(400).json({
-      message: 'bad request',
-      error
-    })
-  }
+  const result = await userService.register(req.body) // truyen thang req.body de tao user luon
+  // nhưng mà làm vậy thì hàm register sẽ bị ảnh hưởng, nên là cần mod lại
+  return res.status(201).json({
+    message: 'Register successfully',
+    result
+  })
 }
