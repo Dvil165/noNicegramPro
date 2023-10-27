@@ -5,6 +5,8 @@ import { hashPassword } from '~/utils/crypto'
 import { signToken } from '~/utils/jwt'
 import { TokenType } from '~/constants/enums'
 import { config } from 'dotenv'
+import RefreshToken from '~/models/schemas/RefreshToken.schema'
+import { ObjectId } from 'mongodb'
 config()
 
 class UserService {
@@ -51,6 +53,14 @@ class UserService {
     // trả ra mảng, sau đó phân rã, rồi dùng promise.all để tiết kiệm thời gian
     // nhận lại mảng, phân rã rồi xài
     const [access_token, refresh_token] = await this.signTokens(user_id)
+    // luu tokens vao database
+    await databaseService.refreshTokens.insertOne(
+      new RefreshToken({
+        token: refresh_token,
+        user_id: new ObjectId(user_id)
+      })
+    )
+
     return { access_token, refresh_token }
   }
 
@@ -65,6 +75,12 @@ class UserService {
     // dung user id de tao token
     const [access_token, refresh_token] = await this.signTokens(user_id)
     //return 2 cai token cho controller
+    await databaseService.refreshTokens.insertOne(
+      new RefreshToken({
+        token: refresh_token,
+        user_id: new ObjectId(user_id)
+      })
+    )
     return { access_token, refresh_token }
   }
 }
