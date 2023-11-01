@@ -1,13 +1,22 @@
 // cái file này sẽ lưu ALL route, api liên quan đến user
 import { Router } from 'express'
-import { loginController, logoutController } from '~/controllers/users.controlers'
+import {
+  loginController,
+  logoutController,
+  resendEmailVerifyController,
+  forgotPasswordController,
+  verifyForgotPasswordTokenController
+} from '~/controllers/users.controlers'
 import {
   loginValidator,
   registerValidator,
   accessTokenValidator,
-  refreshTokenValidator
+  refreshTokenValidator,
+  emailVerifyTokenValidator,
+  forgotPasswordValidator,
+  verifyForgotPasswordTokenValidator
 } from '~/middlewares/users.middlewares'
-import { registerController } from '~/controllers/users.controlers'
+import { registerController, verifyEmailController } from '~/controllers/users.controlers'
 import { register } from 'module'
 import { wrapAsync } from '~/utils/handlers'
 const userRoute = Router()
@@ -53,6 +62,42 @@ header: {Authorization: 'Bearer <access_Token>'}
 body: {refresh_Token: string}
 */
 userRoute.post('/logout', accessTokenValidator, refreshTokenValidator, wrapAsync(logoutController))
+
+/*
+des: verify email
+path: user/verify-email
+method: post
+body: {email_verify_token: string}
+*/
+userRoute.post('/verify-email', emailVerifyTokenValidator, wrapAsync(verifyEmailController))
+
+/*
+des: resend verify email
+path: user/resend-verify-email
+method: post
+headers: {Authorization: "Bearer <access_token>"}
+*/
+userRoute.post('/resend-verify-email', accessTokenValidator, wrapAsync(resendEmailVerifyController))
+
+/*
+des: forgot password
+path: user/forgot-password
+method: post
+body: {email: string}
+*/
+userRoute.post('/forgot-password', forgotPasswordValidator, wrapAsync(forgotPasswordController))
+
+/*
+des: verify forgot password 
+path: user/verify-forgot-password
+method: post
+body: {forgot_password_token: string}
+*/
+userRoute.post(
+  '/verify-forgot-password',
+  verifyForgotPasswordTokenValidator,
+  wrapAsync(verifyForgotPasswordTokenController)
+)
 
 // nơi trả dữ lịu aka controller
 // trước nó thường là middleware

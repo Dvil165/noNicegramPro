@@ -3,7 +3,7 @@ import databaseService from './database.services'
 import User from '~/models/schemas/User.schema'
 import { hashPassword } from '~/utils/crypto'
 import { signToken } from '~/utils/jwt'
-import { TokenType } from '~/constants/enums'
+import { TokenType, UserVerifyStatus } from '~/constants/enums'
 import { config } from 'dotenv'
 import RefreshToken from '~/models/schemas/RefreshToken.schema'
 import { ObjectId } from 'mongodb'
@@ -16,7 +16,8 @@ class UserService {
       payload: { user_id, token_type: TokenType.AccessToken },
       options: {
         expiresIn: process.env.ACCESS_TOKEN_EXP_IN
-      }
+      },
+      priKey: process.env.JWT_SECRET_ACCESS_TOKEN as string
     })
   }
 
@@ -25,7 +26,28 @@ class UserService {
       payload: { user_id, token_type: TokenType.RefreshToken },
       options: {
         expiresIn: process.env.REFRESH_TOKEN_EXP_IN
-      }
+      },
+      priKey: process.env.JWT_SECRET_REFRESH_TOKEN as string
+    })
+  }
+
+  private signEmailVerifyToken(user_id: string) {
+    return signToken({
+      payload: { user_id, token_type: TokenType.EmailVerificationToken },
+      options: {
+        expiresIn: process.env.EMAIL_VERIFY_EXP_IN
+      },
+      priKey: process.env.JWT_EMAIL_VERIFY_SECRET as string
+    })
+  }
+
+  private signForgotPasswordToken(user_id: string) {
+    return signToken({
+      payload: { user_id, token_type: TokenType.ForgotPwToken },
+      options: {
+        expiresIn: process.env.FORGOT_PASSWORD_TOKEN_EXP_IN
+      },
+      priKey: process.env.JWT_FORGOT_PASSWORD_TOKEN_SECRET as string
     })
   }
 
@@ -35,25 +57,27 @@ class UserService {
   }
 
   async register(payload: registerRequestBody) {
+    const user_id = new ObjectId()
+    const email_verify_token = await this.signEmailVerifyToken(user_id.toString())
     // mod lại ở chỗ này là kiểu mới
 
     // create a new user and add to db
     // insertOne will return insertedOne (User)
     const result = await databaseService.users.insertOne(
       new User({
-        ...payload, // nhớ phân ra payload để tạo user mới
+        ...payload,
+        _id: user_id,
+        email_verify_token, // nhớ phân ra payload để tạo user mới
         date_of_birth: new Date(payload.date_of_birth), // overload lại cái date of birth
         // do là user đã có sẵn dob, nên là cần gán lại giá trị mới, nhớ ép kiểu về lại new Date
         password: hashPassword(payload.password) // max hoa password
       })
     )
     // Sign tokens
-    // lay user id truoc
-    const user_id = result.insertedId.toString()
 
     // trả ra mảng, sau đó phân rã, rồi dùng promise.all để tiết kiệm thời gian
     // nhận lại mảng, phân rã rồi xài
-    const [access_token, refresh_token] = await this.signTokens(user_id)
+    const [access_token, refresh_token] = await this.signTokens(user_id.toString())
     // luu tokens vao database
     await databaseService.refreshTokens.insertOne(
       new RefreshToken({
@@ -61,6 +85,8 @@ class UserService {
         user_id: new ObjectId(user_id)
       })
     )
+    // giả bộ gửi mail
+    console.log(email_verify_token)
 
     return { access_token, refresh_token }
   }
@@ -89,6 +115,77 @@ class UserService {
     // xoa refresh token khoi db
     await databaseService.refreshTokens.deleteOne({ token: refresh_token })
     return { message: USER_MESSAGES.LOGOUT_SUCCESSFULLY }
+  }
+
+  async verifyEmail(user_id: string) {
+    // cập nhật lại user
+    await databaseService.users.updateOne(
+      {
+        _id: new ObjectId(user_id)
+      }, // tìm user tương ứng (filter)
+      [
+        {
+          $set: {
+            verify: UserVerifyStatus.Verified,
+            email_verify_token: '',
+            updated_at: '$$NOW' // thuộc tính của mongodb, để cho 2 cái date này khớp nhau
+          }
+        }
+      ]
+    )
+    // Tạo access token và refresh token
+    const [access_token, refresh_token] = await this.signTokens(user_id)
+    // lưu vào db
+    await databaseService.refreshTokens.insertOne(
+      new RefreshToken({
+        token: refresh_token,
+        user_id: new ObjectId(user_id)
+      })
+    )
+    return { access_token, refresh_token }
+  }
+
+  async resendEmailVerify(user_id: string) {
+    // tạo lại token
+    const email_verify_token = await this.signEmailVerifyToken(user_id)
+    // update lại user
+    await databaseService.users.updateOne(
+      {
+        _id: new ObjectId(user_id)
+      },
+      [
+        {
+          $set: {
+            email_verify_token,
+            updated_at: '$$NOW'
+          }
+        }
+      ]
+    )
+    // giả bộ gửi mail
+    console.log(email_verify_token)
+    return { message: USER_MESSAGES.RESEND_EMAIL_VERIFY_SUCCESSFULLY }
+  }
+
+  async forgotPassword(user_id: string) {
+    const forgot_password_token = await this.signForgotPasswordToken(user_id)
+    // update user
+    await databaseService.users.updateOne(
+      {
+        _id: new ObjectId(user_id)
+      },
+      [
+        {
+          $set: {
+            forgot_password_token,
+            updated_at: '$$NOW'
+          }
+        }
+      ]
+    )
+    // giả bộ gửi mail  :)
+    console.log(forgot_password_token)
+    return { message: USER_MESSAGES.CHECK_MAIL_TO_RESET_PASSWORD }
   }
 }
 const userService = new UserService()

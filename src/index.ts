@@ -21,6 +21,7 @@ app.use('/users', userRoute)
 // localhost:3000/users/tweets
 app.use(defaultErrorHandler)
 
+// listen on port 3000 should be the last line
 app.listen(PORT, () => {
   console.log(`Server is currently running on PORT ${PORT}`)
 })

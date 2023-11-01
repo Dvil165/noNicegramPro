@@ -7,11 +7,11 @@ config()
 // cong thuc ma hoa - jwt.signOp là công thức mặc định của nó
 export const signToken = ({
   payload,
-  priKey = process.env.JWT_SECRET as string,
+  priKey,
   options = { algorithm: 'HS256' }
 }: {
   payload: string | object | Buffer
-  priKey?: string
+  priKey: string
   options?: jwt.SignOptions
 }) => {
   return new Promise<string>((rew, rej) => {
@@ -24,13 +24,7 @@ export const signToken = ({
 // const func = ({obj} : {dinh nghia lai}) => {return ... }
 
 // Hàm nhận vào token, secretOrPublicKey?
-export const verifyToken = ({
-  token,
-  secretOrPublicKey = process.env.JWT_SECRET as string
-}: {
-  token: string
-  secretOrPublicKey?: string
-}) => {
+export const verifyToken = ({ token, secretOrPublicKey }: { token: string; secretOrPublicKey: string }) => {
   //                giới hạn lại đầu ra của promise
   return new Promise<TokenPayload>((rew, rej) => {
     jwt.verify(token, secretOrPublicKey, (error, decoded) => {

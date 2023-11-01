@@ -12,6 +12,8 @@ import { hashPassword } from '~/utils/crypto'
 import { validate } from '~/utils/validations'
 import { verifyToken } from '~/utils/jwt'
 import { JsonWebTokenError } from 'jsonwebtoken'
+import { ObjectId } from 'mongodb'
+import { UserVerifyStatus } from '~/constants/enums'
 
 // Lưu tất cả mdware lien quan đến users
 // eg: some1 truy cập /login => request (email, password)
@@ -213,9 +215,7 @@ export const accessTokenValidator = validate(
     {
       Authorization: {
         trim: true,
-        notEmpty: {
-          errorMessage: USER_MESSAGES.ACCESS_TOKEN_IS_REQUIRED
-        },
+
         custom: {
           options: async (value: string, { req }) => {
             const accessToken = value.split(' ')[1]
@@ -228,7 +228,10 @@ export const accessTokenValidator = validate(
             }
             try {
               // nếu có accessToken, thì mình phải verify nó
-              const decoded_authorization = await verifyToken({ token: accessToken })
+              const decoded_authorization = await verifyToken({
+                token: accessToken,
+                secretOrPublicKey: process.env.JWT_SECRET_ACCESS_TOKEN as string
+              })
               // decoded_authorization(payload) và lưu vào req, để dùng dần
               // để ý dấu ; ở đầu để biến nó thành 1 parameter của 1 hàm khác
               ;(req as Request).decoded_authorization = decoded_authorization
@@ -254,9 +257,7 @@ export const refreshTokenValidator = validate(
     {
       refresh_token: {
         trim: true,
-        notEmpty: {
-          errorMessage: USER_MESSAGES.REFRESH_TOKEN_IS_REQUIRED
-        },
+
         custom: {
           options: async (value: string, { req }) => {
             // đã có trim, not empty, nên mình chỉ cần verify thôi
@@ -272,7 +273,7 @@ export const refreshTokenValidator = validate(
               //
               //
               const [decoded_refresh_token, refresh_Token] = await Promise.all([
-                verifyToken({ token: value }),
+                verifyToken({ token: value, secretOrPublicKey: process.env.JWT_SECRET_REFRESH_TOKEN as string }),
                 databaseService.refreshTokens.findOne({
                   token: value //ở đây cũng có thể có bug
                 })
@@ -313,4 +314,162 @@ export const refreshTokenValidator = validate(
     },
     ['body']
   )
+)
+
+export const emailVerifyTokenValidator = validate(
+  checkSchema({
+    email_verify_token: {
+      trim: true,
+      custom: {
+        options: async (value: string, { req }) => {
+          // neu ko truyen len email_verify_token thi se bi loi
+          if (!value) {
+            throw new ErrorWithStatus({
+              message: USER_MESSAGES.EMAIL_VERIFY_TOKEN_IS_REQUIRED,
+              status: HTTP_STATUS.UNAUTHORIZED
+            })
+          }
+          try {
+            // neu co truyen len, thi verify de lay decode
+            const decoded_email_verify_token = await verifyToken({
+              token: value,
+              secretOrPublicKey: process.env.JWT_EMAIL_VERIFY_SECRET as string
+            })
+            // sau do luu vao req
+            ;(req as Request).decoded_email_verify_token = decoded_email_verify_token
+            // lay user_id tu decode de tim user so huu
+            const user_id = decoded_email_verify_token.user_id
+            const user = await databaseService.users.findOne({
+              _id: new ObjectId(user_id)
+            })
+            if (!user) {
+              throw new ErrorWithStatus({
+                message: USER_MESSAGES.USER_NOT_FOUND,
+                status: HTTP_STATUS.UNAUTHORIZED
+              })
+            }
+            // neu co user thi xem thu xem user do co bi banned ko
+            req.user = user
+            // lưu lại user để lát qua controller dùng
+            if (user.verify === UserVerifyStatus.Banned) {
+              throw new ErrorWithStatus({
+                message: USER_MESSAGES.USER_IS_BANNED,
+                status: HTTP_STATUS.FORBIDDEN
+              })
+            }
+            // neu truyen evt len khong khop voi database
+            //
+            if (user.verify != UserVerifyStatus.Verified && user.email_verify_token !== value) {
+              throw new ErrorWithStatus({
+                message: USER_MESSAGES.EMAIL_VERIFY_TOKEN_IS_INCORRECT,
+                status: HTTP_STATUS.UNAUTHORIZED
+              })
+            } // doan nay se khac trong video
+          } catch (error) {
+            if (error instanceof JsonWebTokenError) {
+              throw new ErrorWithStatus({
+                message: capitalize((error as JsonWebTokenError).message),
+                status: HTTP_STATUS.UNAUTHORIZED
+              })
+            }
+            throw error
+          }
+          return true
+        }
+      }
+    }
+  })
+)
+
+export const forgotPasswordValidator = validate(
+  checkSchema(
+    {
+      email: {
+        notEmpty: {
+          errorMessage: USER_MESSAGES.EMAIL_IS_REQUIRED
+        },
+        isEmail: {
+          errorMessage: USER_MESSAGES.EMAIL_IS_INVALID
+        },
+        trim: true,
+        custom: {
+          options: async (value, { req }) => {
+            // nên truy cập db thông qua userService
+            const user = await databaseService.users.findOne({
+              email: value
+            })
+            if (!user) {
+              throw new ErrorWithStatus({
+                message: USER_MESSAGES.USER_NOT_FOUND,
+                status: HTTP_STATUS.NOT_FOUND
+              })
+            }
+            // Den day nghia la da co user, login ok
+            req.user = user
+            return true
+          }
+        }
+      }
+    },
+    ['body']
+  )
+)
+
+export const verifyForgotPasswordTokenValidator = validate(
+  checkSchema({
+    forgot_password_token: {
+      trim: true,
+      custom: {
+        options: async (value: string, { req }) => {
+          // neu ko truyen len fp_token thi se bi loi
+          if (!value) {
+            throw new ErrorWithStatus({
+              message: USER_MESSAGES.FORGOT_PASSWORD_TOKEN_IS_REQUIRED,
+              status: HTTP_STATUS.UNAUTHORIZED
+            })
+          }
+          try {
+            // neu co truyen len, thi verify de lay decode
+            const decoded_forgot_password_token = await verifyToken({
+              token: value,
+              secretOrPublicKey: process.env.JWT_FORGOT_PASSWORD_TOKEN_SECRET as string
+            })
+            // sau do luu vao req
+            ;(req as Request).decoded_forgot_password_token = decoded_forgot_password_token
+            // lay user_id tu decode de tim user so huu
+            const user_id = decoded_forgot_password_token.user_id
+            const user = await databaseService.users.findOne({
+              _id: new ObjectId(user_id)
+            })
+            if (!user) {
+              throw new ErrorWithStatus({
+                message: USER_MESSAGES.USER_NOT_FOUND,
+                status: HTTP_STATUS.UNAUTHORIZED
+              })
+            }
+            // neu co user thi xem thu xem user do co bi banned ko
+            // queen mat khau thi bi banned van cho lấy lại pass
+
+            // neu truyen fpt len khong khop voi database
+            //
+            if (user.forgot_password_token !== value) {
+              throw new ErrorWithStatus({
+                message: USER_MESSAGES.FORGOT_PASSWORD_TOKEN_IS_INCORRECT,
+                status: HTTP_STATUS.UNAUTHORIZED
+              })
+            }
+          } catch (error) {
+            if (error instanceof JsonWebTokenError) {
+              throw new ErrorWithStatus({
+                message: capitalize((error as JsonWebTokenError).message),
+                status: HTTP_STATUS.UNAUTHORIZED
+              })
+            }
+            throw error
+          }
+          return true
+        }
+      }
+    }
+  })
 )

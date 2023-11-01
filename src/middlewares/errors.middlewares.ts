@@ -8,7 +8,7 @@ import { ErrorWithStatus } from '~/models/Errors'
 // sửa lại ở chỗ err.status || HTTP_STATUS.INTERNAL_SERVER_ERROR
 export const defaultErrorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
   if (err instanceof ErrorWithStatus) {
-    res.status(err.status).json(omit(err, ['status']))
+    return res.status(err.status).json(omit(err, ['status']))
   }
   // neu ma loi xuong duoc toi day, nghia la loi mac dinh
   // name, stack, message

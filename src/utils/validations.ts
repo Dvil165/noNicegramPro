@@ -22,7 +22,7 @@ import { EntityError, ErrorWithStatus } from '~/models/Errors'
 export const validate = (validations: RunnableValidationChains<ValidationChain>) => {
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     // chỗ này nó chạy vòng for là do nó dùng valiChain
-    // mà shema của mình là 1...đối tượng, nên là
+    // mà shema của mình là 1...đối tượng, nên là mình có thể . luôn
     await validations.run(req)
 
     const errors = validationResult(req) // dùng thằng này để lấy lỗi ra
@@ -48,9 +48,11 @@ export const validate = (validations: RunnableValidationChains<ValidationChain>)
       // con neu la 422 thi them vao entityErrors
       entityErrors.errors[key] = msg
       // đi qua từng key của eroorObject và gán key tương ứng cho entityErrors
-      // cơ mà thay vì lấy hết thì minhd chỉ lấy thêm prop msg nữa mà thôi
+      // cơ mà thay vì lấy hết thì mình chỉ lấy thêm thuộc tính msg nữa mà thôi
     }
     next(entityErrors) // đây là nếu có lỗi
-    // mặc định nó là array, sửa nó thành mapped thì đẹp hơn nhiều
   }
 }
+// Dưới này là những cmt không còn phù hợp cho đoạn code phía trên
+// hàm validate lấy từ doc về:
+// mặc định nó là array, sửa nó thành mapped thì đẹp hơn nhiều
