@@ -1,4 +1,4 @@
-import { registerRequestBody } from '~/models/requests/User.request'
+import { UpdateMeReqBody, registerRequestBody } from '~/models/requests/User.request'
 import databaseService from './database.services'
 import User from '~/models/schemas/User.schema'
 import { hashPassword } from '~/utils/crypto'
@@ -8,12 +8,15 @@ import { config } from 'dotenv'
 import RefreshToken from '~/models/schemas/RefreshToken.schema'
 import { ObjectId } from 'mongodb'
 import { USER_MESSAGES } from '~/constants/messages'
+import { verify } from 'crypto'
+import { ErrorWithStatus } from '~/models/Errors'
+import HTTP_STATUS from '~/constants/httpSta'
 config()
 
 class UserService {
-  private signAccessToken(user_id: string) {
+  private signAccessToken({ user_id, verify }: { user_id: string; verify: UserVerifyStatus }) {
     return signToken({
-      payload: { user_id, token_type: TokenType.AccessToken },
+      payload: { user_id, token_type: TokenType.AccessToken, verify },
       options: {
         expiresIn: process.env.ACCESS_TOKEN_EXP_IN
       },
@@ -21,9 +24,9 @@ class UserService {
     })
   }
 
-  private signRefreshToken(user_id: string) {
+  private signRefreshToken({ user_id, verify }: { user_id: string; verify: UserVerifyStatus }) {
     return signToken({
-      payload: { user_id, token_type: TokenType.RefreshToken },
+      payload: { user_id, token_type: TokenType.RefreshToken, verify },
       options: {
         expiresIn: process.env.REFRESH_TOKEN_EXP_IN
       },
@@ -31,9 +34,9 @@ class UserService {
     })
   }
 
-  private signEmailVerifyToken(user_id: string) {
+  private signEmailVerifyToken({ user_id, verify }: { user_id: string; verify: UserVerifyStatus }) {
     return signToken({
-      payload: { user_id, token_type: TokenType.EmailVerificationToken },
+      payload: { user_id, token_type: TokenType.EmailVerificationToken, verify },
       options: {
         expiresIn: process.env.EMAIL_VERIFY_EXP_IN
       },
@@ -41,9 +44,9 @@ class UserService {
     })
   }
 
-  private signForgotPasswordToken(user_id: string) {
+  private signForgotPasswordToken({ user_id, verify }: { user_id: string; verify: UserVerifyStatus }) {
     return signToken({
-      payload: { user_id, token_type: TokenType.ForgotPwToken },
+      payload: { user_id, token_type: TokenType.ForgotPwToken, verify },
       options: {
         expiresIn: process.env.FORGOT_PASSWORD_TOKEN_EXP_IN
       },
@@ -51,14 +54,17 @@ class UserService {
     })
   }
 
-  private async signTokens(user_id: string) {
-    return Promise.all([this.signAccessToken(user_id), this.signRefreshToken(user_id)])
+  private async signTokens({ user_id, verify }: { user_id: string; verify: UserVerifyStatus }) {
+    return Promise.all([this.signAccessToken({ user_id, verify }), this.signRefreshToken({ user_id, verify })])
     // return thoi, thang nao xai thi tu promise.all, ai ranh dau ma lam
   }
 
   async register(payload: registerRequestBody) {
     const user_id = new ObjectId()
-    const email_verify_token = await this.signEmailVerifyToken(user_id.toString())
+    const email_verify_token = await this.signEmailVerifyToken({
+      user_id: user_id.toString(),
+      verify: UserVerifyStatus.Unverified
+    })
     // mod lại ở chỗ này là kiểu mới
 
     // create a new user and add to db
@@ -67,6 +73,7 @@ class UserService {
       new User({
         ...payload,
         _id: user_id,
+        username: `user${user_id.toString()}`,
         email_verify_token, // nhớ phân ra payload để tạo user mới
         date_of_birth: new Date(payload.date_of_birth), // overload lại cái date of birth
         // do là user đã có sẵn dob, nên là cần gán lại giá trị mới, nhớ ép kiểu về lại new Date
@@ -77,7 +84,13 @@ class UserService {
 
     // trả ra mảng, sau đó phân rã, rồi dùng promise.all để tiết kiệm thời gian
     // nhận lại mảng, phân rã rồi xài
-    const [access_token, refresh_token] = await this.signTokens(user_id.toString())
+    const [access_token, refresh_token] = await this.signTokens(
+      // truyền vào object
+      {
+        user_id: user_id.toString(),
+        verify: UserVerifyStatus.Unverified
+      }
+    )
     // luu tokens vao database
     await databaseService.refreshTokens.insertOne(
       new RefreshToken({
@@ -97,10 +110,13 @@ class UserService {
     return Boolean(user)
     // :) ep kieu ve boolean: obj => true | null => false
   }
-
-  async login(user_id: string) {
+  // edited 3/11/2023
+  async login({ user_id, verify }: { user_id: string; verify: UserVerifyStatus }) {
     // dung user id de tao token
-    const [access_token, refresh_token] = await this.signTokens(user_id)
+    const [access_token, refresh_token] = await this.signTokens({
+      user_id,
+      verify
+    })
     //return 2 cai token cho controller
     await databaseService.refreshTokens.insertOne(
       new RefreshToken({
@@ -134,7 +150,10 @@ class UserService {
       ]
     )
     // Tạo access token và refresh token
-    const [access_token, refresh_token] = await this.signTokens(user_id)
+    const [access_token, refresh_token] = await this.signTokens({
+      user_id,
+      verify: UserVerifyStatus.Verified
+    })
     // lưu vào db
     await databaseService.refreshTokens.insertOne(
       new RefreshToken({
@@ -147,7 +166,7 @@ class UserService {
 
   async resendEmailVerify(user_id: string) {
     // tạo lại token
-    const email_verify_token = await this.signEmailVerifyToken(user_id)
+    const email_verify_token = await this.signEmailVerifyToken({ user_id, verify: UserVerifyStatus.Unverified })
     // update lại user
     await databaseService.users.updateOne(
       {
@@ -167,8 +186,8 @@ class UserService {
     return { message: USER_MESSAGES.RESEND_EMAIL_VERIFY_SUCCESSFULLY }
   }
 
-  async forgotPassword(user_id: string) {
-    const forgot_password_token = await this.signForgotPasswordToken(user_id)
+  async forgotPassword({ user_id, verify }: { user_id: string; verify: UserVerifyStatus }) {
+    const forgot_password_token = await this.signForgotPasswordToken({ user_id, verify })
     // update user
     await databaseService.users.updateOne(
       {
@@ -199,6 +218,70 @@ class UserService {
       }
     ])
     return { message: USER_MESSAGES.RESET_PASSWORD_SUCCESSFULLY }
+  }
+
+  async getMe(user_id: string) {
+    const user = await databaseService.users.findOne(
+      { _id: new ObjectId(user_id) },
+      // projection: chỉ lấy những cái mình muốn, set ve 0 la duoc
+      {
+        projection: {
+          password: 0,
+          email_verify_token: 0,
+          forgot_password_token: 0
+        }
+      }
+    )
+    return user
+  }
+
+  async updateMe(user_id: string, payload: UpdateMeReqBody) {
+    // Có thể truyền lên dOb hoặc không, nếu có thì nhớ ép kiểu về lại new Date, còn không thì thôi
+    const _payload = payload.date_of_birth ? { ...payload, date_of_birth: new Date(payload.date_of_birth) } : payload
+    // update user
+    const user = await databaseService.users.findOneAndUpdate(
+      { _id: new ObjectId(user_id) },
+      [
+        {
+          $set: {
+            ..._payload,
+            updated_at: '$$NOW'
+          }
+        }
+      ],
+      {
+        returnDocument: 'after',
+        projection: {
+          password: 0,
+          email_verify_token: 0,
+          forgot_password_token: 0
+        }
+      }
+    )
+    return user
+  }
+
+  async getProfile(username: string) {
+    const user = await databaseService.users.findOne(
+      { username },
+      {
+        projection: {
+          password: 0,
+          email_verify_token: 0,
+          forgot_password_token: 0,
+          verify: 0,
+          create_at: 0,
+          update_at: 0
+        }
+      }
+    )
+    if (user == null) {
+      throw new ErrorWithStatus({
+        message: USER_MESSAGES.USER_NOT_FOUND,
+        status: HTTP_STATUS.NOT_FOUND
+      })
+    }
+    return user
   }
 }
 const userService = new UserService()

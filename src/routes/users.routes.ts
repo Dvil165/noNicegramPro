@@ -6,7 +6,10 @@ import {
   resendEmailVerifyController,
   forgotPasswordController,
   verifyForgotPasswordTokenController,
-  resetPasswordController
+  resetPasswordController,
+  getMeController,
+  updateMeController,
+  getProfileController
 } from '~/controllers/users.controlers'
 import {
   loginValidator,
@@ -16,11 +19,15 @@ import {
   emailVerifyTokenValidator,
   forgotPasswordValidator,
   verifyForgotPasswordTokenValidator,
-  resetPasswordValidator
+  resetPasswordValidator,
+  verifiedUserValidator,
+  updateMeValidator
 } from '~/middlewares/users.middlewares'
 import { registerController, verifyEmailController } from '~/controllers/users.controlers'
 import { register } from 'module'
 import { wrapAsync } from '~/utils/handlers'
+import { filterMiddleware } from '~/middlewares/common.middlewares'
+import { UpdateMeReqBody } from '~/models/requests/User.request'
 const userRoute = Router()
 
 // Eg:
@@ -114,6 +121,35 @@ userRoute.post(
   verifyForgotPasswordTokenValidator,
   wrapAsync(resetPasswordController)
 )
+
+/*
+des: get profile của user
+path: '/me'
+method: get
+Header: {Authorization: Bearer <access_token>}
+body: {}
+*/
+userRoute.get('/me', accessTokenValidator, wrapAsync(getMeController))
+
+userRoute.patch(
+  '/me',
+  accessTokenValidator,
+  verifiedUserValidator,
+  filterMiddleware<UpdateMeReqBody>([
+    'name',
+    'date_of_birth',
+    'bio',
+    'location',
+    'website',
+    'username',
+    'avatar',
+    'cover_photo'
+  ]),
+  updateMeValidator,
+  wrapAsync(updateMeController)
+)
+
+userRoute.get('/:username', wrapAsync(getProfileController))
 
 // nơi trả dữ lịu aka controller
 // trước nó thường là middleware

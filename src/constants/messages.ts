@@ -43,5 +43,19 @@ export const USER_MESSAGES = {
   FORGOT_PASSWORD_TOKEN_IS_INCORRECT: 'Forgot password token is incorrect',
   FORGOT_PASSWORD_TOKEN_IS_REQUIRED: 'Forgot password token is required',
   VERIFY_FORGOT_PASSWORD_TOKEN_SUCCESSFULLY: 'Verify forgot password token successfully',
-  RESET_PASSWORD_SUCCESSFULLY: 'Reset password successfully'
+  RESET_PASSWORD_SUCCESSFULLY: 'Reset password successfully',
+  GET_ME_SUCCESSFULLY: 'Get me successfully',
+  USER_IS_NOT_VERIFIED: 'User is not verified',
+  IMAGE_URL_MUST_BE_A_STRING: 'Image url must be a string',
+  IMAGE_URL_MUST_BE_FROM_1_TO_400: 'Image url length must be from 1 to 400',
+  BIO_MUST_BE_A_STRING: 'Bio must be a string',
+  BIO_LENGTH_MUST_BE_LESS_THAN_200: 'Bio length must be less than 200',
+  LOCATION_MUST_BE_A_STRING: 'Location must be a string',
+  LOCATION_LENGTH_MUST_BE_LESS_THAN_200: 'Location length must be less than 200',
+  WEBSITE_MUST_BE_A_STRING: 'Website must be a string',
+  WEBSITE_LENGTH_MUST_BE_LESS_THAN_200: 'Website length must be less than 200',
+  USERNAME_MUST_BE_A_STRING: 'Username must be a string',
+  USERNAME_LENGTH_MUST_BE_LESS_THAN_50: 'Username length must be less than 50',
+  UPDATE_ME_SUCCESSFULLY: 'Update me successfully',
+  GET_PROFILE_SUCCESSFULLY: 'Get profile successfully'
 } as const
