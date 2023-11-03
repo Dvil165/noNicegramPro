@@ -1,7 +1,7 @@
 // 16/10/23: login and register
 
 import { Request, Response, NextFunction } from 'express'
-import { checkSchema } from 'express-validator'
+import { ParamSchema, check, checkSchema } from 'express-validator'
 import { capitalize, has } from 'lodash'
 import HTTP_STATUS from '~/constants/httpSta'
 import { USER_MESSAGES } from '~/constants/messages'
@@ -14,6 +14,71 @@ import { verifyToken } from '~/utils/jwt'
 import { JsonWebTokenError } from 'jsonwebtoken'
 import { ObjectId } from 'mongodb'
 import { UserVerifyStatus } from '~/constants/enums'
+
+const passwordSchema: ParamSchema = {
+  notEmpty: {
+    errorMessage: USER_MESSAGES.PASSWORD_IS_REQUIRED
+  },
+  isString: {
+    errorMessage: USER_MESSAGES.PASSWORD_MUST_BE_A_STRING
+  },
+  isLength: {
+    options: {
+      min: 8,
+      max: 50
+    },
+    errorMessage: USER_MESSAGES.PASSWORD_LENGTH_MUST_BE_FROM_8_TO_50
+  },
+  isStrongPassword: {
+    options: {
+      minLowercase: 1,
+      minLength: 8,
+      minUppercase: 1,
+      minNumbers: 1,
+      minSymbols: 1,
+      returnScore: false // manh yeu aka t f
+      // returnScore: false cham diem tren thang diem 10
+    },
+    errorMessage: USER_MESSAGES.PASSWORD_MUST_BE_STRONG
+  }
+}
+const confirmedPasswordSchema: ParamSchema = {
+  notEmpty: {
+    errorMessage: USER_MESSAGES.CONFIRM_PASSWORD_IS_REQUIRED
+  },
+  isString: {
+    errorMessage: USER_MESSAGES.CONFIRM_PASSWORD_MUST_BE_A_STRING
+  },
+  isLength: {
+    options: {
+      min: 8,
+      max: 50
+    },
+    errorMessage: USER_MESSAGES.CONFIRM_PASSWORD_LENGTH_MUST_BE_FROM_8_TO_50
+  },
+  isStrongPassword: {
+    options: {
+      minLowercase: 1,
+      minLength: 8,
+      minUppercase: 1,
+      minNumbers: 1,
+      minSymbols: 1,
+      returnScore: false // manh yeu aka t f
+      // returnScore: false cham diem tren thang diem 10
+    },
+    errorMessage: USER_MESSAGES.CONFIRM_PASSWORD_MUST_BE_STRONG
+  },
+
+  // Ham này để viết thêm 1 hàm kiểm tra
+  custom: {
+    options: (value, { req }) => {
+      if (value !== req.body.password) {
+        throw new Error(USER_MESSAGES.CONFIRM_PASSWORD_MUST_BE_THE_SAME_AS_PASSWORD)
+      }
+      return true
+    }
+  }
+}
 
 // Lưu tất cả mdware lien quan đến users
 // eg: some1 truy cập /login => request (email, password)
@@ -132,70 +197,8 @@ export const registerValidator = validate(
         }
       }
     },
-    password: {
-      notEmpty: {
-        errorMessage: USER_MESSAGES.PASSWORD_IS_REQUIRED
-      },
-      isString: {
-        errorMessage: USER_MESSAGES.PASSWORD_MUST_BE_A_STRING
-      },
-      isLength: {
-        options: {
-          min: 8,
-          max: 50
-        },
-        errorMessage: USER_MESSAGES.PASSWORD_LENGTH_MUST_BE_FROM_8_TO_50
-      },
-      isStrongPassword: {
-        options: {
-          minLowercase: 1,
-          minLength: 8,
-          minUppercase: 1,
-          minNumbers: 1,
-          minSymbols: 1,
-          returnScore: false // manh yeu aka t f
-          // returnScore: false cham diem tren thang diem 10
-        },
-        errorMessage: USER_MESSAGES.PASSWORD_MUST_BE_STRONG
-      }
-    },
-    confirmed_password: {
-      notEmpty: {
-        errorMessage: USER_MESSAGES.CONFIRM_PASSWORD_IS_REQUIRED
-      },
-      isString: {
-        errorMessage: USER_MESSAGES.CONFIRM_PASSWORD_MUST_BE_A_STRING
-      },
-      isLength: {
-        options: {
-          min: 8,
-          max: 50
-        },
-        errorMessage: USER_MESSAGES.CONFIRM_PASSWORD_LENGTH_MUST_BE_FROM_8_TO_50
-      },
-      isStrongPassword: {
-        options: {
-          minLowercase: 1,
-          minLength: 8,
-          minUppercase: 1,
-          minNumbers: 1,
-          minSymbols: 1,
-          returnScore: false // manh yeu aka t f
-          // returnScore: false cham diem tren thang diem 10
-        },
-        errorMessage: USER_MESSAGES.CONFIRM_PASSWORD_MUST_BE_STRONG
-      },
-
-      // Ham này để viết thêm 1 hàm kiểm tra
-      custom: {
-        options: (value, { req }) => {
-          if (value !== req.body.password) {
-            throw new Error(USER_MESSAGES.CONFIRM_PASSWORD_MUST_BE_THE_SAME_AS_PASSWORD)
-          }
-          return true
-        }
-      }
-    },
+    password: passwordSchema,
+    confirmed_password: confirmedPasswordSchema,
     date_of_birth: {
       isISO8601: {
         options: {
@@ -472,4 +475,14 @@ export const verifyForgotPasswordTokenValidator = validate(
       }
     }
   })
+)
+
+export const resetPasswordValidator = validate(
+  checkSchema(
+    {
+      password: passwordSchema,
+      confirmedPassword: confirmedPasswordSchema
+    },
+    ['body']
+  )
 )

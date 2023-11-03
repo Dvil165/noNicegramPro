@@ -5,7 +5,8 @@ import {
   logoutController,
   resendEmailVerifyController,
   forgotPasswordController,
-  verifyForgotPasswordTokenController
+  verifyForgotPasswordTokenController,
+  resetPasswordController
 } from '~/controllers/users.controlers'
 import {
   loginValidator,
@@ -14,7 +15,8 @@ import {
   refreshTokenValidator,
   emailVerifyTokenValidator,
   forgotPasswordValidator,
-  verifyForgotPasswordTokenValidator
+  verifyForgotPasswordTokenValidator,
+  resetPasswordValidator
 } from '~/middlewares/users.middlewares'
 import { registerController, verifyEmailController } from '~/controllers/users.controlers'
 import { register } from 'module'
@@ -97,6 +99,20 @@ userRoute.post(
   '/verify-forgot-password',
   verifyForgotPasswordTokenValidator,
   wrapAsync(verifyForgotPasswordTokenController)
+)
+
+/*
+des: reset password
+path: '/reset-password'
+method: POST
+Header: không cần, vì  ngta quên mật khẩu rồi, thì sao mà đăng nhập để có authen đc
+body: {forgot_password_token: string, password: string, confirm_password: string}
+*/
+userRoute.post(
+  '/reset-password',
+  resetPasswordValidator,
+  verifyForgotPasswordTokenValidator,
+  wrapAsync(resetPasswordController)
 )
 
 // nơi trả dữ lịu aka controller

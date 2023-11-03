@@ -4,7 +4,13 @@ import User from '~/models/schemas/User.schema'
 import databaseService from '~/services/database.services'
 import userService from '~/services/users.services'
 import { ParamsDictionary } from 'express-serve-static-core'
-import { TokenPayload, loginRequestBody, logoutRequestBody, registerRequestBody } from '~/models/requests/User.request'
+import {
+  TokenPayload,
+  loginRequestBody,
+  logoutRequestBody,
+  registerRequestBody,
+  resetPasswordRequestBody
+} from '~/models/requests/User.request'
 import { ErrorWithStatus } from '~/models/Errors'
 import { ObjectId } from 'mongodb'
 import { USER_MESSAGES } from '~/constants/messages'
@@ -103,4 +109,17 @@ export const verifyForgotPasswordTokenController = async (req: Request, res: Res
   return res.json({
     message: USER_MESSAGES.VERIFY_FORGOT_PASSWORD_TOKEN_SUCCESSFULLY
   })
+}
+
+export const resetPasswordController = async (
+  req: Request<ParamsDictionary, any, resetPasswordRequestBody>,
+  res: Response
+) => {
+  // muon doi mat khau thi can user_id, new_password
+  const { user_id } = req.decoded_forgot_password_token as TokenPayload
+  const { password } = req.body
+  // Tim kiem va cap nhat
+  //                                nen de duoi dang obj vi co the user se truyen len nguoc
+  const result = await userService.resetPassword({ user_id, password })
+  return res.json(result)
 }
