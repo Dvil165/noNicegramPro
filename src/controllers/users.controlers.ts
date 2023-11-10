@@ -1,5 +1,5 @@
 // 16/10/23
-import { Request, Response } from 'express'
+import { NextFunction, Request, Response } from 'express'
 import User from '~/models/schemas/User.schema'
 import databaseService from '~/services/database.services'
 import userService from '~/services/users.services'
@@ -11,7 +11,9 @@ import {
   registerRequestBody,
   resetPasswordRequestBody,
   UpdateMeReqBody,
-  getProfileReqParams
+  getProfileReqParams,
+  FollowReqBody,
+  UnfollowReqParams
 } from '~/models/requests/User.request'
 import { ErrorWithStatus } from '~/models/Errors'
 import { ObjectId } from 'mongodb'
@@ -172,4 +174,25 @@ export const getProfileController = async (req: Request<getProfileReqParams>, re
     message: USER_MESSAGES.GET_PROFILE_SUCCESSFULLY,
     result: user
   })
+}
+
+export const followController = async (
+  req: Request<ParamsDictionary, any, FollowReqBody>,
+  res: Response,
+  next: NextFunction
+) => {
+  const { user_id } = req.decoded_authorization as TokenPayload //lấy user_id từ decoded_authorization của access_token
+  const { followed_user_id } = req.body //lấy followed_user_id từ req.body
+  const result = await userService.follow(user_id, followed_user_id)
+  return res.json(result)
+}
+
+export const unfollowController = async (req: Request<UnfollowReqParams>, res: Response, next: NextFunction) => {
+  // xác định user đang dùng route này
+  const { user_id } = req.decoded_authorization as TokenPayload
+  // sau đó xác định người mà mình muốn unfollow
+  const { user_id: followed_user_id } = req.params
+  // gọi hàm unfollow
+  const result = await userService.unfollow(user_id, followed_user_id)
+  return res.json(result)
 }
