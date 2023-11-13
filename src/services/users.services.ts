@@ -315,6 +315,7 @@ class UserService {
       user_id: new ObjectId(user_id),
       followed_user_id: new ObjectId(followed_user_id)
     })
+
     if (!isFollowed) {
       return {
         message: USER_MESSAGES.ALREADY_UNFOLLOWED
@@ -325,7 +326,57 @@ class UserService {
       user_id: new ObjectId(user_id),
       followed_user_id: new ObjectId(followed_user_id)
     })
+    return {
+      message: USER_MESSAGES.UNFOLLOW_SUCCESS
+    }
+  }
+
+  async changePassword(user_id: string, password: string) {
+    await databaseService.users.updateOne(
+      {
+        _id: new ObjectId(user_id)
+      },
+      [
+        {
+          $set: {
+            password: hashPassword(password),
+            forgot_password_token: '',
+            updated_at: '$$NOW'
+          }
+        }
+      ]
+    )
+    return {
+      message: USER_MESSAGES.CHANGE_PASSWORD_SUCCESSFULLY
+    }
+  }
+
+  async refresh2Tokens({
+    user_id,
+    verify,
+    refresh_token
+  }: {
+    user_id: string
+    verify: UserVerifyStatus
+    refresh_token: string
+  }) {
+    // tạo ra acc và ref token mới
+    const [access_token, new_refresh_token] = await this.signTokens({ user_id, verify })
+    // xóa ref token cũ
+    await databaseService.refreshTokens.deleteOne({ token: refresh_token })
+    // Sau đó thêm cho user(dựa theo user_id ở trên) 1 cái ref token mới
+    await databaseService.refreshTokens.insertOne(
+      new RefreshToken({
+        user_id: new ObjectId(user_id),
+        token: new_refresh_token
+      })
+    )
+    return {
+      access_token,
+      refresh_token: new_refresh_token
+    }
   }
 }
+
 const userService = new UserService()
 export default userService

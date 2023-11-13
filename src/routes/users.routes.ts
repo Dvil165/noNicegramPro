@@ -11,7 +11,9 @@ import {
   updateMeController,
   getProfileController,
   followController,
-  unfollowController
+  unfollowController,
+  changePasswordController,
+  refreshController
 } from '~/controllers/users.controlers'
 import {
   loginValidator,
@@ -25,7 +27,8 @@ import {
   verifiedUserValidator,
   updateMeValidator,
   followValidator,
-  unfollowValidator
+  unfollowValidator,
+  changePasswordValidator
 } from '~/middlewares/users.middlewares'
 import { registerController, verifyEmailController } from '~/controllers/users.controlers'
 import { register } from 'module'
@@ -65,6 +68,7 @@ method: POST
 body: {email, password}
 */
 userRoute.post('/login', loginValidator, wrapAsync(loginController))
+
 userRoute.post('/register', registerValidator, wrapAsync(registerController))
 
 /*
@@ -155,7 +159,7 @@ userRoute.patch(
 
 userRoute.get('/:username', wrapAsync(getProfileController))
 
-/*
+/* Follow
 des: Follow someone
 path: '/follow'
 method: post
@@ -163,8 +167,8 @@ headers: {Authorization: Bearer <access_token>}
 body: {followed_user_id: string}
 */
 userRoute.post('/follow', accessTokenValidator, verifiedUserValidator, followValidator, wrapAsync(followController))
-// follower0 id 654d7903f0a2d1282f5514dd
-// follower1 id 654d79cf8f121d61080bc310
+// follower0
+// follower1
 //accessTokenValidator dùng dể kiểm tra xem ngta có đăng nhập hay chưa, và có đc user_id của người dùng từ req.decoded_authorization
 //verifiedUserValidator dùng để kiễm tra xem ngta đã verify email hay chưa, rồi thì mới cho follow người khác
 //trong req.body có followed_user_id  là mã của người mà ngta muốn follow
@@ -172,13 +176,15 @@ userRoute.post('/follow', accessTokenValidator, verifiedUserValidator, followVal
 //  account đó có tồn tại hay không
 //followController: tiến hành thao tác tạo document vào collection followers
 
-/*
+/* unfollowValidator
+ kiểm tra user_id truyền qua params có hợp lệ hay k?
+
     des: unfollow someone
     path: '/follow/:user_id'
     method: delete
     headers: {Authorization: Bearer <access_token>}
-  g}
-    */
+
+*/
 userRoute.delete(
   '/unfollow/:user_id',
   accessTokenValidator,
@@ -186,8 +192,36 @@ userRoute.delete(
   unfollowValidator,
   wrapAsync(unfollowController)
 )
-//unfollowValidator: kiểm tra user_id truyền qua params có hợp lệ hay k?
+
+/* changePasswordValidator 
+kiểm tra các giá trị truyền lên trên body cớ valid k ?
+
+  des: change password
+  path: '/change-password'
+  method: PUT
+  headers: {Authorization: Bearer <access_token>}
+  Body: {old_password: string, password: string, confirm_password: string}
+
+*/
+userRoute.put(
+  '/change-password',
+  accessTokenValidator,
+  verifiedUserValidator,
+  changePasswordValidator,
+  wrapAsync(changePasswordController)
+)
+
+/*
+  des: refreshtoken
+  path: '/refresh-token'
+  method: POST
+  Body: {refresh_token: string}
+
+*/
+userRoute.post('/refresh-two-tokens', refreshTokenValidator, wrapAsync(refreshController))
+//khỏi kiểm tra accesstoken, tại nó hết hạn rồi mà
+//refreshController chưa làm
+
 // nơi trả dữ lịu aka controller
 // trước nó thường là middleware
-
 export default userRoute

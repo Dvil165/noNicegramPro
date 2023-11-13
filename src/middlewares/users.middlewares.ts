@@ -651,3 +651,44 @@ export const unfollowValidator = validate(
     ['params']
   )
 )
+
+export const changePasswordValidator = validate(
+  checkSchema(
+    {
+      old_password: {
+        ...passwordSchema,
+        custom: {
+          options: async (value, { req }) => {
+            // lay user_id tu decoded_authorization
+            const { user_id } = req.decoded_authorization as TokenPayload
+            // tim user co user_id do
+            const user = await databaseService.users.findOne({
+              _id: new ObjectId(user_id)
+            })
+            // neu khong tim dc
+            if (user === null) {
+              throw new ErrorWithStatus({
+                message: USER_MESSAGES.USER_NOT_FOUND,
+                status: HTTP_STATUS.NOT_FOUND
+              })
+            }
+
+            // neu tim dc thi kiem tra xem old_password co khop voi password trong db ko
+            const { password } = user
+            if (password !== hashPassword(value)) {
+              throw new ErrorWithStatus({
+                message: USER_MESSAGES.OLD_PASSWORD_IS_INCORRECT,
+                status: HTTP_STATUS.UNAUTHORIZED
+              })
+            }
+            // neu khop thi cho qua
+            return true
+          }
+        }
+      },
+      password: passwordSchema,
+      confirmed_password: confirmedPasswordSchema
+    },
+    ['body']
+  )
+)

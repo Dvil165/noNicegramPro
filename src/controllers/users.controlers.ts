@@ -13,7 +13,9 @@ import {
   UpdateMeReqBody,
   getProfileReqParams,
   FollowReqBody,
-  UnfollowReqParams
+  UnfollowReqParams,
+  changePasswordReqBody,
+  refresh2TokensReqBody
 } from '~/models/requests/User.request'
 import { ErrorWithStatus } from '~/models/Errors'
 import { ObjectId } from 'mongodb'
@@ -195,4 +197,32 @@ export const unfollowController = async (req: Request<UnfollowReqParams>, res: R
   // gọi hàm unfollow
   const result = await userService.unfollow(user_id, followed_user_id)
   return res.json(result)
+}
+
+export const changePasswordController = async (
+  req: Request<ParamsDictionary, any, changePasswordReqBody>,
+  res: Response,
+  next: NextFunction
+) => {
+  // lấy user_id từ decoded_authorization
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { password } = req.body
+  const result = await userService.changePassword(user_id, password)
+  return res.json(result)
+}
+
+export const refreshController = async (
+  req: Request<ParamsDictionary, any, refresh2TokensReqBody>,
+  res: Response,
+  next: NextFunction
+) => {
+  // lấy refresh_token từ req.body
+  const { refresh_token } = req.body
+  const { user_id, verify } = req.decoded_refresh_token as TokenPayload
+
+  const result = await userService.refresh2Tokens({ user_id, verify, refresh_token })
+  return res.json({
+    message: USER_MESSAGES.REFRESH_TOKENS_SUCCESSFULLY,
+    result
+  })
 }
