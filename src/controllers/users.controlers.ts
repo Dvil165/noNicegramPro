@@ -218,11 +218,18 @@ export const refreshController = async (
 ) => {
   // lấy refresh_token từ req.body
   const { refresh_token } = req.body
-  const { user_id, verify } = req.decoded_refresh_token as TokenPayload
+  const { user_id, verify, exp } = req.decoded_refresh_token as TokenPayload
 
-  const result = await userService.refresh2Tokens({ user_id, verify, refresh_token })
+  const result = await userService.refresh2Tokens({ user_id, verify, refresh_token, exp })
   return res.json({
     message: USER_MESSAGES.REFRESH_TOKENS_SUCCESSFULLY,
     result
   })
+}
+
+export const OAuthController = async (req: Request, res: Response, next: NextFunction) => {
+  const { code } = req.query
+  const { access_token, refresh_token, new_user } = await userService.OAuth(code as string)
+  const urlRedirect = `${process.env.CLIENT_REDIRECT_CALLBACK}?access_token=${access_token}&refresh_token=${refresh_token}&new_user=${new_user}`
+  return res.redirect(urlRedirect)
 }

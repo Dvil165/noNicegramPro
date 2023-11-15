@@ -13,7 +13,8 @@ import {
   followController,
   unfollowController,
   changePasswordController,
-  refreshController
+  refreshController,
+  OAuthController
 } from '~/controllers/users.controlers'
 import {
   loginValidator,
@@ -221,6 +222,8 @@ userRoute.put(
 userRoute.post('/refresh-two-tokens', refreshTokenValidator, wrapAsync(refreshController))
 //khỏi kiểm tra accesstoken, tại nó hết hạn rồi mà
 //refreshController chưa làm
+
+userRoute.get('/oauth/google', wrapAsync(OAuthController))
 
 // nơi trả dữ lịu aka controller
 // trước nó thường là middleware

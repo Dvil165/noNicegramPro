@@ -3,7 +3,7 @@ import databaseService from './database.services'
 import User from '~/models/schemas/User.schema'
 import { Follower } from '~/models/schemas/Followers.schema'
 import { hashPassword } from '~/utils/crypto'
-import { signToken } from '~/utils/jwt'
+import { signToken, verifyToken } from '~/utils/jwt'
 import { TokenType, UserVerifyStatus } from '~/constants/enums'
 import { config } from 'dotenv'
 import RefreshToken from '~/models/schemas/RefreshToken.schema'
@@ -12,9 +12,17 @@ import { USER_MESSAGES } from '~/constants/messages'
 import { verify } from 'crypto'
 import { ErrorWithStatus } from '~/models/Errors'
 import HTTP_STATUS from '~/constants/httpSta'
+import axios from 'axios'
 config()
 
 class UserService {
+  private decodeRefreshToken(refresh_token: string) {
+    return verifyToken({
+      token: refresh_token,
+      secretOrPublicKey: process.env.JWT_SECRET_REFRESH_TOKEN as string
+    })
+  }
+
   private signAccessToken({ user_id, verify }: { user_id: string; verify: UserVerifyStatus }) {
     return signToken({
       payload: { user_id, token_type: TokenType.AccessToken, verify },
@@ -25,14 +33,21 @@ class UserService {
     })
   }
 
-  private signRefreshToken({ user_id, verify }: { user_id: string; verify: UserVerifyStatus }) {
-    return signToken({
-      payload: { user_id, token_type: TokenType.RefreshToken, verify },
-      options: {
-        expiresIn: process.env.REFRESH_TOKEN_EXP_IN
-      },
-      priKey: process.env.JWT_SECRET_REFRESH_TOKEN as string
-    })
+  private signRefreshToken({ user_id, verify, exp }: { user_id: string; verify: UserVerifyStatus; exp?: number }) {
+    if (exp) {
+      return signToken({
+        payload: { user_id, token_type: TokenType.RefreshToken, verify, exp },
+        priKey: process.env.JWT_SECRET_REFRESH_TOKEN as string
+      })
+    } else {
+      return signToken({
+        payload: { user_id, token_type: TokenType.RefreshToken, verify },
+        options: {
+          expiresIn: process.env.REFRESH_TOKEN_EXP_IN
+        },
+        priKey: process.env.JWT_SECRET_REFRESH_TOKEN as string
+      })
+    }
   }
 
   private signEmailVerifyToken({ user_id, verify }: { user_id: string; verify: UserVerifyStatus }) {
@@ -92,11 +107,14 @@ class UserService {
         verify: UserVerifyStatus.Unverified
       }
     )
+    const { iat, exp } = await this.decodeRefreshToken(refresh_token)
     // luu tokens vao database
     await databaseService.refreshTokens.insertOne(
       new RefreshToken({
         token: refresh_token,
-        user_id: new ObjectId(user_id)
+        user_id: new ObjectId(user_id),
+        iat,
+        exp
       })
     )
     // giả bộ gửi mail
@@ -118,11 +136,15 @@ class UserService {
       user_id,
       verify
     })
+    const { iat, exp } = await this.decodeRefreshToken(refresh_token)
+
     //return 2 cai token cho controller
     await databaseService.refreshTokens.insertOne(
       new RefreshToken({
         token: refresh_token,
-        user_id: new ObjectId(user_id)
+        user_id: new ObjectId(user_id),
+        iat,
+        exp
       })
     )
     return { access_token, refresh_token }
@@ -155,11 +177,15 @@ class UserService {
       user_id,
       verify: UserVerifyStatus.Verified
     })
+    const { iat, exp } = await this.decodeRefreshToken(refresh_token)
+
     // lưu vào db
     await databaseService.refreshTokens.insertOne(
       new RefreshToken({
         token: refresh_token,
-        user_id: new ObjectId(user_id)
+        user_id: new ObjectId(user_id),
+        iat,
+        exp
       })
     )
     return { access_token, refresh_token }
@@ -354,26 +380,133 @@ class UserService {
   async refresh2Tokens({
     user_id,
     verify,
-    refresh_token
+    refresh_token,
+    exp
   }: {
     user_id: string
     verify: UserVerifyStatus
     refresh_token: string
+    exp: number
   }) {
     // tạo ra acc và ref token mới
-    const [access_token, new_refresh_token] = await this.signTokens({ user_id, verify })
+    const [access_token, new_refresh_token] = await Promise.all([
+      this.signAccessToken({ user_id, verify }),
+      this.signRefreshToken({ user_id, verify, exp })
+    ])
+    const { iat } = await this.decodeRefreshToken(refresh_token)
+
     // xóa ref token cũ
     await databaseService.refreshTokens.deleteOne({ token: refresh_token })
     // Sau đó thêm cho user(dựa theo user_id ở trên) 1 cái ref token mới
     await databaseService.refreshTokens.insertOne(
       new RefreshToken({
         user_id: new ObjectId(user_id),
-        token: new_refresh_token
+        token: new_refresh_token,
+        exp,
+        iat
       })
     )
     return {
       access_token,
       refresh_token: new_refresh_token
+    }
+  }
+
+  // dung code nhan dc de yeu cau gg tao id_token
+  private async getOAuthGoogleToken(code: string) {
+    const body = {
+      code,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      grant_type: 'authorization_code'
+    }
+
+    const { data } = await axios.post('https://oauth2.googleapis.com/token', body, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    return data as {
+      access_token: string
+      id_token: string
+    }
+  }
+
+  private async getGoogleUserInfor(access_token: string, id_token: string) {
+    const { data } = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+      params: {
+        access_token,
+        alt: 'json'
+      },
+      headers: {
+        Authorization: `Bearer ${id_token}`
+      }
+    })
+
+    return data as {
+      id: string
+      email: string
+      email_verified: string
+      name: string
+      given_name: string
+      family_name: string
+      picture: string
+      locate: string
+    }
+  }
+
+  async OAuth(code: string) {
+    const { id_token, access_token } = await this.getOAuthGoogleToken(code)
+    const userInformation = await this.getGoogleUserInfor(access_token, id_token)
+    // Sau khi co user thi xem verify chua?
+    if (!userInformation.email_verified) {
+      throw new ErrorWithStatus({
+        message: USER_MESSAGES.EMAIL_NOT_VERIFIED,
+        status: HTTP_STATUS.BAD_REQUEST
+      })
+    }
+
+    // check thu xem email co trong database CUA MINH chua
+    const user = await databaseService.users.findOne({ email: userInformation.email })
+    // neu co roi thi client dang muon login
+    if (user) {
+      const [access_token, refresh_token] = await this.signTokens({
+        user_id: user._id.toString(),
+        verify: user.verify
+      })
+      const { iat, exp } = await this.decodeRefreshToken(refresh_token)
+      // luu ref token nay
+      await databaseService.refreshTokens.insertOne(
+        new RefreshToken({
+          token: refresh_token,
+          user_id: new ObjectId(user._id),
+          iat,
+          exp
+        })
+      )
+      return {
+        access_token,
+        refresh_token,
+        new_user: 0, // 0 la user cux
+        verify: user.verify
+      }
+    } else {
+      // neu chua co thi tao user moi
+      const password = Math.random().toString(36).slice(1, 15)
+
+      const data = await this.register({
+        email: userInformation.email,
+        password,
+        confirm_password: password,
+        name: userInformation.name,
+        date_of_birth: new Date().toISOString()
+      })
+      return {
+        ...data,
+        new_user: 1, // 1 la user moi
+        verify: UserVerifyStatus.Unverified
+      }
     }
   }
 }

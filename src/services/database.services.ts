@@ -32,6 +32,11 @@ class DatabaseService {
     // ma minh biet chac no la string, nen la as string
     return this.db.collection(process.env.DB_USERS_COLLECTIONS as string)
   }
+  async indexUsers() {
+    await this.users.createIndex({ email: 1 }, { unique: true }) //register
+    await this.users.createIndex({ username: 1 }, { unique: true }) //getProfile
+    await this.users.createIndex({ email: 1, password: 1 }) //login
+  }
 
   get refreshTokens(): Collection<RefreshToken> {
     //                                   neu ko co as string thi no se bao unf,
